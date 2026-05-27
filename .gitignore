@@ -6,10 +6,15 @@ __pycache__/
 env/
 venv/
 ENV/
-.env
+.pytest_cache/
+.coverage
+htmlcov/
 
-# Google API
+# Confidential / Secrets
+.env
 credentials.json
+*.pem
+*.key
 
 # Ghost Specific
 logs/
@@ -20,8 +25,16 @@ data/
 .DS_Store
 Thumbs.db
 
-# Excluded folders
+# IDE
+.vscode/
+.idea/
+*.swp
+.gemini/
+
+# Documentation (Only README.md is allowed)
+*.md
+!README.md
+
+# Legacy / Excluded folders
 Legacy/
 docs/
-handoff.md
-CHANGELOG.md

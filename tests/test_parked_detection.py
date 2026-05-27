@@ -93,7 +93,7 @@ async def test_scrape_url_genuine_httpx_passes():
         mock_get.return_value = mock_resp
         
         result = await scrape_url("http://nonexistent-genuine-domain-xyz.com")
-        assert "Welcome to Acme Corp" in result
+        assert "Welcome to Acme Corp" in result["text"]
         assert result != "BLOCK: PARKED"
 
 # --- QUALITY FILTERING & SANITIZATION TDD TESTS ---

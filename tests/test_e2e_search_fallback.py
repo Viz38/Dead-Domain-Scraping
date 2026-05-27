@@ -109,6 +109,6 @@ async def test_ghost_live_probe_workflow():
         assert mock_probe.call_count == 5
         expected_html = "\n\n---\n\n".join([mock_live_content["html"]] * 5)
         expected_text = "\n\n---\n\n".join([mock_live_text] * 5)
-        orchestrator._finalize_hit.assert_called_once_with(5, "acmeelectric.com", expected_html, "LIVE_PROBE", ["acmeelectric.com"], text_data=expected_text)
+        orchestrator._finalize_hit.assert_called_once_with(5, "acmeelectric.com", expected_text, "LIVE_PROBE", ["acmeelectric.com"])
 
 

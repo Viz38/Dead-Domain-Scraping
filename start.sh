@@ -142,6 +142,13 @@ setup_env() {
 run_engine() {
     local mode=$1
     local data_type=${2:-text}
+    
+    if pgrep -f "python3 ghost.py" > /dev/null || pgrep -f "start.sh --daemon" > /dev/null; then
+        echo -e "\033[91m[CRITICAL] Ghost Engine is already running! Please stop it first using STOP ALL (Option 10).\033[0m"
+        read -p "Press Enter to return..."
+        return
+    fi
+    
     echo -e "\033[94m[START] Launching Ghost Unified Engine (Mode: ${mode:-full}, Format: ${data_type})...\033[0m"
     if [ ! -d "$VENV_DIR" ]; then
         setup_env
@@ -183,6 +190,13 @@ check_updates() {
 
 install_linux_service() {
     local s_data_type=$1
+    
+    if pgrep -f "python3 ghost.py" > /dev/null || pgrep -f "start.sh --daemon" > /dev/null; then
+        echo -e "\033[91m[CRITICAL] Ghost Engine is already running! Please stop it first using STOP ALL (Option 10) before installing the service.\033[0m"
+        read -p "Press Enter to return..."
+        return
+    fi
+    
     echo -e "\033[96m[SERVICE] Setting up 24x7 persistent systemd service...\033[0m"
     if [ "$(uname)" == "Darwin" ]; then
         echo -e "\033[93m[WARNING] You are on macOS. This feature is intended for Linux.\033[0m"
@@ -235,6 +249,33 @@ EOF
     read -p "Press Enter to return..."
 }
 
+stop_all_services() {
+    echo -e "\033[93m[STOP] Terminating all Ghost Engine processes and services...\033[0m"
+    
+    if command -v systemctl &> /dev/null && [ "$(uname)" == "Linux" ]; then
+        echo -e "\033[96m[STOP] Stopping and disabling systemd service (if running)...\033[0m"
+        sudo systemctl stop ghost-engine.service 2>/dev/null || true
+        sudo systemctl disable ghost-engine.service 2>/dev/null || true
+    fi
+    
+    echo -e "\033[96m[STOP] Killing running daemon processes...\033[0m"
+    pkill -f "start.sh --daemon" || true
+    
+    echo -e "\033[96m[STOP] Killing running python script processes (ghost.py)...\033[0m"
+    pkill -f "python3 ghost.py" || true
+    
+    echo -e "\033[96m[STOP] Cleaning up orphaned browser processes...\033[0m"
+    pkill -f "playwright" || true
+    pkill -f "chromium" || true
+    
+    if [ -f "/tmp/ghost_engine.lock" ]; then
+        rm -f "/tmp/ghost_engine.lock"
+    fi
+    
+    echo -e "\033[92m[SUCCESS] All Ghost Engine operations have been forcefully stopped.\033[0m"
+    sleep 2
+}
+
 # --- MAIN MENU ---
 while true; do
     print_banner
@@ -248,7 +289,8 @@ while true; do
     echo -e "\033[97m   [7] DIAGNOSTICS      \033[90m(SYSTEM HEALTH CHECK)\033[0m"
     echo -e "\033[97m   [8] CLEAR LOGS       \033[90m(TRUNCATE LOG FILES)\033[0m"
     echo -e "\033[97m   [9] CHECK UPDATES    \033[90m(PULL LATEST CODE FROM GIT)\033[0m"
-    echo -e "\033[91m   [10] EXIT            \033[90m(CLOSE HUB)\033[0m"
+    echo -e "\033[93m   [10] STOP ALL        \033[90m(KILL RUNNING SERVICES & DAEMONS)\033[0m"
+    echo -e "\033[91m   [11] EXIT            \033[90m(CLOSE HUB)\033[0m"
     echo ""
     read -p "   [GHOST] SELECT STRATEGY >> " choice
 
@@ -318,6 +360,9 @@ while true; do
             check_updates
             ;;
         10)
+            stop_all_services
+            ;;
+        11)
             echo -e "\033[90mTerminating session...\033[0m"
             exit 0
             ;;

@@ -324,9 +324,10 @@ show_status() {
     read -p "Press Enter to return..."
 }
 
-# --- FIRST LAUNCH AUTO-START ---
-if [ "$IS_FIRST_LAUNCH" = true ]; then
-    echo -e "\033[96m[FIRST LAUNCH] Automatically starting background daemon...\033[0m"
+# --- AUTO-START BACKGROUND DAEMON ---
+daemon_active=$(pgrep -f "start.sh --daemon" | wc -l | awk '{print $1}')
+if [ "$daemon_active" -eq 0 ]; then
+    echo -e "\033[96m[AUTO-START] No active daemon found. Automatically starting background daemon...\033[0m"
     install_linux_service "text"
 fi
 

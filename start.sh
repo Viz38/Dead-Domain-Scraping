@@ -160,17 +160,21 @@ run_engine() {
 
 check_updates() {
     echo -e "\033[96m[UPDATE] Checking for new updates from git...\033[0m"
-    git fetch origin
     
-    LOCAL=$(git rev-parse @)
-    REMOTE=$(git rev-parse @{u})
+    REPO_URL="https://github.com/Viz38/Dead-Domain-Scraping.git"
+    BRANCH="Prod"
+    
+    git fetch "$REPO_URL" "$BRANCH"
+    
+    LOCAL=$(git rev-parse HEAD)
+    REMOTE=$(git rev-parse FETCH_HEAD)
     
     if [ "$LOCAL" = "$REMOTE" ]; then
         echo -e "\033[92m[UPDATE] Ghost Engine is already up-to-date.\033[0m"
         sleep 2
     else
         echo -e "\033[93m[UPDATE] Updates found! Pulling latest changes...\033[0m"
-        git pull
+        git pull "$REPO_URL" "$BRANCH"
         echo -e "\033[92m[SUCCESS] Engine updated successfully!\033[0m"
         echo -e "\033[91m[CRITICAL] Please manually restart the script to apply changes.\033[0m"
         exit 0

@@ -1,0 +1,27 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+.venv/
+env/
+venv/
+ENV/
+.env
+
+# Google API
+credentials.json
+
+# Ghost Specific
+logs/
+data/
+*.log
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Excluded folders
+Legacy/
+docs/
+handoff.md
+CHANGELOG.md

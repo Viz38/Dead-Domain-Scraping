@@ -276,6 +276,43 @@ stop_all_services() {
     sleep 2
 }
 
+show_status() {
+    echo -e "\033[96m[STATUS] Checking Ghost Engine processes...\033[0m"
+    echo "--------------------------------------------------------"
+    
+    if command -v systemctl &> /dev/null && [ "$(uname)" == "Linux" ]; then
+        if systemctl is-active --quiet ghost-engine.service; then
+            echo -e "⚙️  Systemd Service: \033[92mRUNNING\033[0m"
+        else
+            echo -e "⚙️  Systemd Service: \033[91mSTOPPED\033[0m"
+        fi
+    fi
+    
+    daemon_count=$(pgrep -f "start.sh --daemon" | wc -l | awk '{print $1}')
+    if [ "$daemon_count" -gt 0 ]; then
+        echo -e "👻 Daemon Processes: \033[92m$daemon_count ACTIVE\033[0m"
+    else
+        echo -e "👻 Daemon Processes: \033[90m0 ACTIVE\033[0m"
+    fi
+    
+    ghost_count=$(pgrep -f "python3 ghost.py" | wc -l | awk '{print $1}')
+    if [ "$ghost_count" -gt 0 ]; then
+        echo -e "🐍 Ghost Scripts:    \033[92m$ghost_count ACTIVE\033[0m"
+    else
+        echo -e "🐍 Ghost Scripts:    \033[90m0 ACTIVE\033[0m"
+    fi
+    
+    browser_count=$(pgrep -f "playwright|chromium" | wc -l | awk '{print $1}')
+    if [ "$browser_count" -gt 0 ]; then
+        echo -e "🌐 Browser Workers:  \033[92m$browser_count ACTIVE\033[0m"
+    else
+        echo -e "🌐 Browser Workers:  \033[90m0 ACTIVE\033[0m"
+    fi
+    
+    echo "--------------------------------------------------------"
+    read -p "Press Enter to return..."
+}
+
 # --- MAIN MENU ---
 while true; do
     print_banner
@@ -290,7 +327,8 @@ while true; do
     echo -e "\033[97m   [8] CLEAR LOGS       \033[90m(TRUNCATE LOG FILES)\033[0m"
     echo -e "\033[97m   [9] CHECK UPDATES    \033[90m(PULL LATEST CODE FROM GIT)\033[0m"
     echo -e "\033[93m   [10] STOP ALL        \033[90m(KILL RUNNING SERVICES & DAEMONS)\033[0m"
-    echo -e "\033[91m   [11] EXIT            \033[90m(CLOSE HUB)\033[0m"
+    echo -e "\033[96m   [11] SHOW STATUS     \033[90m(VIEW RUNNING PROCESSES)\033[0m"
+    echo -e "\033[91m   [12] EXIT            \033[90m(CLOSE HUB)\033[0m"
     echo ""
     read -p "   [GHOST] SELECT STRATEGY >> " choice
 
@@ -363,6 +401,9 @@ while true; do
             stop_all_services
             ;;
         11)
+            show_status
+            ;;
+        12)
             echo -e "\033[90mTerminating session...\033[0m"
             exit 0
             ;;

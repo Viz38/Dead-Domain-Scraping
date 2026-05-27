@@ -64,8 +64,10 @@ if [ "$1" == "--daemon" ]; then
 fi
 
 DEFAULT_SHEET="$GHOST_SHEET_ID"
+IS_FIRST_LAUNCH=false
 
 if [ -z "$DEFAULT_SHEET" ]; then
+    IS_FIRST_LAUNCH=true
     echo -e "\n\033[93m   [FIRST LAUNCH] Please enter your Google Sheet ID or full URL >> \033[0m"
     read -p "   >> " user_sheet
     
@@ -244,9 +246,12 @@ EOF
         echo -e "Use 'sudo systemctl status ghost-engine.service' to check status."
         echo -e "Use 'sudo journalctl -u ghost-engine.service -f' to view live logs."
     else
-        echo -e "\033[93m[INFO] Service file generated. Since systemd/sudo is not available, move it to /etc/systemd/system/ manually on your Linux server.\033[0m"
+        echo -e "\033[93m[INFO] Service file generated. Since systemd/sudo is not available, we will spawn the daemon in the background using nohup.\033[0m"
+        nohup /bin/bash "$ENGINE_DIR/start.sh" --daemon "$s_data_type" > "$ENGINE_DIR/ghost_daemon.log" 2>&1 &
+        echo -e "\033[92m[SUCCESS] Ghost daemon spawned in background! PID: $!\033[0m"
     fi
-    read -p "Press Enter to return..."
+    
+    show_status
 }
 
 stop_all_services() {
@@ -309,9 +314,21 @@ show_status() {
         echo -e "🌐 Browser Workers:  \033[90m0 ACTIVE\033[0m"
     fi
     
+    echo -e "\n📋 \033[96mCurrent Run Status:\033[0m"
+    if [ -f "ghost.log" ]; then
+        tail -n 6 ghost.log | sed 's/^/   /'
+    else
+        echo "   No log data yet."
+    fi
     echo "--------------------------------------------------------"
     read -p "Press Enter to return..."
 }
+
+# --- FIRST LAUNCH AUTO-START ---
+if [ "$IS_FIRST_LAUNCH" = true ]; then
+    echo -e "\033[96m[FIRST LAUNCH] Automatically starting background daemon...\033[0m"
+    install_linux_service "text"
+fi
 
 # --- MAIN MENU ---
 while true; do

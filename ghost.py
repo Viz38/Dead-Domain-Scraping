@@ -127,6 +127,34 @@ class GhostOrchestrator:
         self.success_count = 0
         self.fail_count = 0
 
+    def _check_maintenance_window(self):
+        from datetime import datetime as dt_module, timezone, timedelta
+        import os
+        IST = timezone(timedelta(hours=5, minutes=30))
+        now_ist = dt_module.now(IST)
+        m_time_str = os.getenv("MAINTENANCE_TIME", "05:00")
+        try:
+            m_hour, m_minute = map(int, m_time_str.split(':'))
+        except ValueError:
+            m_hour, m_minute = 5, 0
+            
+        current_total_minutes = now_ist.hour * 60 + now_ist.minute
+        maintenance_start_minutes = m_hour * 60 + m_minute
+        
+        return maintenance_start_minutes <= current_total_minutes < maintenance_start_minutes + 30
+
+    def _trigger_maintenance_sync(self):
+        import os, subprocess, sys
+        m_time_str = os.getenv("MAINTENANCE_TIME", "05:00")
+        msg = f"\n[GHOST] Entering {m_time_str} IST Maintenance Mode. Running maintenance.py..."
+        print(msg)
+        logging.info(msg)
+        subprocess.run([sys.executable, "maintenance.py"])
+        msg_done = "[GHOST] Maintenance complete. Shutting down gracefully to allow start.sh to restart."
+        print(msg_done)
+        logging.info(msg_done)
+        sys.exit(0)
+
     async def run(self):
         """Main execution loop with sheet-driven auto-resume."""
         # 0. Optimize OS Limits
@@ -160,7 +188,13 @@ class GhostOrchestrator:
         remaining = total_rows - start_row + 1
         
         if remaining <= 0:
-            print("[GHOST] All domains processed. Exiting.")
+            msg = "[GHOST] All domains processed. Exiting."
+            print(msg)
+            logging.info(msg)
+            if self._check_maintenance_window():
+                logging.info("[GHOST] Empty sheet, but inside maintenance window. Triggering maintenance.")
+                self.maintenance_triggered = True
+                self._trigger_maintenance_sync()
             return
 
         # 2. Clear terminal and start Static Dashboard
@@ -218,15 +252,7 @@ class GhostOrchestrator:
             
             # --- Daily Maintenance Trigger ---
             if getattr(self, "maintenance_triggered", False):
-                import os
-                m_time_str = os.getenv("MAINTENANCE_TIME", "05:00")
-                print(f"\n[GHOST] Entering {m_time_str} IST Maintenance Mode. Running maintenance.py...")
-                import subprocess
-                import sys
-                subprocess.run([sys.executable, "maintenance.py"])
-                print("[GHOST] Maintenance complete. Shutting down gracefully to allow start.sh to restart.")
-                # Exit with standard code so start.sh restarts us
-                sys.exit(0)
+                self._trigger_maintenance_sync()
 
     async def _process_domain_protected(self, domain, row_idx):
         if getattr(self, "maintenance_triggered", False):
@@ -234,20 +260,9 @@ class GhostOrchestrator:
             
         async with self.semaphore:
             # --- Daily Maintenance Check ---
-            from datetime import datetime as dt_module, timezone, timedelta
-            import os
-            IST = timezone(timedelta(hours=5, minutes=30))
-            now_ist = dt_module.now(IST)
-            m_time_str = os.getenv("MAINTENANCE_TIME", "05:00")
-            try:
-                m_hour, m_minute = map(int, m_time_str.split(':'))
-            except ValueError:
-                m_hour, m_minute = 5, 0
-                
-            current_total_minutes = now_ist.hour * 60 + now_ist.minute
-            maintenance_start_minutes = m_hour * 60 + m_minute
-            
-            if maintenance_start_minutes <= current_total_minutes < maintenance_start_minutes + 30:
+            if self._check_maintenance_window():
+                import os
+                m_time_str = os.getenv("MAINTENANCE_TIME", "05:00")
                 logging.info(f"[GHOST] Maintenance Window ({m_time_str} IST). Halting new processing for {domain}.")
                 self.maintenance_triggered = True
                 return

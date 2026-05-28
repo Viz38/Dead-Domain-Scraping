@@ -60,6 +60,10 @@ if [ "$1" == "--daemon" ]; then
             log_echo "[$(date)] Process completed successfully. Idling for 60 seconds before next cycle..."
             sleep 60 &
             wait $!
+        elif [ $exit_code -eq 2 ]; then
+            log_echo "[$(date)] Maintenance appended new domains! Bypassing idle timer for immediate execution..."
+            sleep 1 &
+            wait $!
         else
             log_echo "[$(date)] Process exited with code $exit_code. Auto-recovering in 10 seconds..."
             sleep 10 &

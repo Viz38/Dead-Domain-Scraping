@@ -149,11 +149,11 @@ class GhostOrchestrator:
         msg = f"\n[GHOST] Initiating Data Sync & Maintenance. Running maintenance.py..."
         print(msg)
         logging.info(msg)
-        subprocess.run([sys.executable, "maintenance.py"])
+        res = subprocess.run([sys.executable, "maintenance.py"])
         msg_done = "[GHOST] Maintenance complete. Shutting down gracefully to allow start.sh to restart."
         print(msg_done)
         logging.info(msg_done)
-        sys.exit(0)
+        sys.exit(res.returncode)
 
     async def run(self):
         """Main execution loop with sheet-driven auto-resume."""

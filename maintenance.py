@@ -280,6 +280,8 @@ async def perform_maintenance():
                             f.write(f"{row[0].strip().lower()}\n")
                 except Exception as e:
                     logging.error(f"[Maintenance] Failed to write to {seen_cache_file}: {e}")
+                    
+                return True
             else:
                 logging.info("[Maintenance] No new domains returned from Tracxn.")
         except Exception as e:
@@ -289,6 +291,8 @@ async def perform_maintenance():
 
     m_time_str = os.getenv("MAINTENANCE_TIME", "05:00")
     logging.info(f"[Maintenance] {m_time_str} Tasks Completed.")
+    return False
 
 if __name__ == "__main__":
-    asyncio.run(perform_maintenance())
+    added_new = asyncio.run(perform_maintenance())
+    sys.exit(2 if added_new else 0)

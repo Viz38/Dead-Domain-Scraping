@@ -45,6 +45,8 @@ async def perform_maintenance():
     p2_success = []
     p3_success = []
     
+    queued_valid_domains = 0
+    
     # Identify completed rows (SUCCESS or BLOCK)
     for idx, row in enumerate(rows):
         if idx == 0: continue # Skip Header
@@ -62,6 +64,9 @@ async def perform_maintenance():
                 if payload_tag == "PASS 1": p1_success.append(row_to_append)
                 elif payload_tag == "PASS 2": p2_success.append(row_to_append)
                 elif payload_tag == "PASS 3": p3_success.append(row_to_append)
+        else:
+            if domain.strip():
+                queued_valid_domains += 1
             
     # 2. Log and Delete Completed Rows
     if completed_domains:
@@ -136,7 +141,7 @@ async def perform_maintenance():
 
     # 3. Fetch New Domains from Tracxn and Append
     max_domains = int(os.getenv("MAX_DOMAINS_IN_SHEET", 6000))
-    remaining_domains = len(rows) - 1 - len(rows_to_delete)
+    remaining_domains = queued_valid_domains
     domains_to_fetch = max(0, max_domains - remaining_domains)
     
     if domains_to_fetch > 0:

@@ -146,8 +146,7 @@ class GhostOrchestrator:
 
     def _trigger_maintenance_sync(self):
         import os, subprocess, sys
-        m_time_str = os.getenv("MAINTENANCE_TIME", "05:00")
-        msg = f"\n[GHOST] Entering {m_time_str} IST Maintenance Mode. Running maintenance.py..."
+        msg = f"\n[GHOST] Initiating Data Sync & Maintenance. Running maintenance.py..."
         print(msg)
         logging.info(msg)
         subprocess.run([sys.executable, "maintenance.py"])
@@ -193,13 +192,13 @@ class GhostOrchestrator:
         remaining = total_rows - start_row + 1
         
         if remaining <= 0:
-            msg = "[GHOST] All domains processed. Exiting."
+            msg = "[GHOST] All domains processed. Sheet is out of queued domains."
             print(msg)
             logging.info(msg)
-            if self._check_maintenance_window():
-                logging.info("[GHOST] Empty sheet, but inside maintenance window. Triggering maintenance.")
-                self.maintenance_triggered = True
-                self._trigger_maintenance_sync()
+            
+            logging.info("[GHOST] Triggering maintenance sync to fetch new targets from Tracxn.")
+            self.maintenance_triggered = True
+            self._trigger_maintenance_sync()
             return
 
         # 2. Clear terminal and start Static Dashboard

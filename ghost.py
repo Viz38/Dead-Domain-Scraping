@@ -189,10 +189,40 @@ class GhostOrchestrator:
             start_row = idx + 1
             
         total_rows = len(sheet_data)
-        remaining = total_rows - start_row + 1
+        
+        # Build pending_rows early to get accurate count of non-empty domains
+        pending_rows = []
+        if self.mode == "search_only":
+            for row_idx in range(2, total_rows + 1):
+                row = sheet_data[row_idx-1]
+                domain = row[0].strip() if len(row) > 0 else ""
+                if not domain: continue
+                status = row[1].strip() if len(row) > 1 else ""
+                
+                is_scraped = status in ["RAW DATA SCRAPED", "SUCCESS", "RECONSTRUCTION READY", "RECONSTRUCTING", "PROCESSING"]
+                if not is_scraped:
+                    pending_rows.append((domain, row_idx))
+        else:
+            for row_idx in range(start_row, total_rows + 1):
+                row = sheet_data[row_idx-1]
+                domain = row[0].strip() if len(row) > 0 else ""
+                if domain: pending_rows.append((domain, row_idx))
+                
+        if self.limit:
+            pending_rows = pending_rows[:self.limit]
+            
+        if self.force_domain:
+            pending_rows = [p for p in pending_rows if p[0] == self.force_domain]
+            if not pending_rows:
+                for i, r in enumerate(sheet_data[1:], start=2):
+                    if len(r) > 0 and r[0].strip() == self.force_domain:
+                        pending_rows = [(r[0].strip(), i)]
+                        break
+                        
+        remaining = len(pending_rows)
         
         if remaining <= 0:
-            msg = "[GHOST] All domains processed. Sheet is out of queued domains."
+            msg = "[GHOST] All valid domains processed or sheet is empty of queued targets."
             print(msg)
             logging.info(msg)
             
@@ -212,36 +242,7 @@ class GhostOrchestrator:
         # 4. Execution Pipeline
         try:
             tasks = []
-            pending_rows = []
-            if self.mode == "search_only":
-                # For search_only, scan the entire sheet and only process unprocessed or failed domains
-                for row_idx in range(2, total_rows + 1):
-                    row = sheet_data[row_idx-1]
-                    domain = row[0].strip() if len(row) > 0 else ""
-                    if not domain: continue
-                    status = row[1].strip() if len(row) > 1 else ""
-                    
-                    is_scraped = status in ["RAW DATA SCRAPED", "SUCCESS", "RECONSTRUCTION READY", "RECONSTRUCTING", "PROCESSING"]
-                    if not is_scraped:
-                        pending_rows.append((domain, row_idx))
-                if self.dashboard:
-                    self.dashboard.total = len(pending_rows)
-            else:
-                for row_idx in range(start_row, total_rows + 1):
-                    domain = sheet_data[row_idx-1][0].strip()
-                    if domain: pending_rows.append((domain, row_idx))
-            
-            if self.limit:
-                pending_rows = pending_rows[:self.limit]
-                self.dashboard.total = len(pending_rows)
-            
-            if self.force_domain:
-                pending_rows = [p for p in pending_rows if p[0] == self.force_domain]
-                if not pending_rows: # Find it in the whole sheet if not in pending
-                    for i, r in enumerate(sheet_data[1:], start=2):
-                        if r[0] == self.force_domain:
-                            pending_rows = [(r[0], i)]
-                            break
+            if self.dashboard:
                 self.dashboard.total = len(pending_rows)
                 
             for domain, row_idx in pending_rows:

@@ -45,6 +45,7 @@ class GhostDashboard:
         
     def update_worker(self, worker_id, status):
         self.workers[worker_id] = status[:40].ljust(40)
+        logging.info(f"[Worker {worker_id:02}] {status}")
         self.render()
 
     def update_stats(self, success, fail, processed):
@@ -160,12 +161,16 @@ class GhostOrchestrator:
         # 0. Optimize OS Limits
         success, limit = HardwareOptimizer.optimize_system_limits()
         limit_status = f" (Ulimit optimized to {limit})" if success else ""
-        print(f"[GHOST][Unified] Initializing Pipeline | Concurrency: {self.MAX_CONCURRENCY} | OS: {self.HW_SPECS.get('os')}{limit_status}")
+        msg_init = f"[GHOST][Unified] Initializing Pipeline | Concurrency: {self.MAX_CONCURRENCY} | OS: {self.HW_SPECS.get('os')}{limit_status}"
+        print(msg_init)
+        logging.info(msg_init)
         
         # 1. Initialize Sheet & Discover Start Row
         sheet_data = await self.sheet_client.get_all_rows(self.sheet_url)
         if not sheet_data:
-            print("[GHOST][Error] Could not access Google Sheet.")
+            msg_err = "[GHOST][Error] Could not access Google Sheet."
+            print(msg_err)
+            logging.error(msg_err)
             return
 
         # Resume logic: Strictly follow 'Scan Status' (Col B)
@@ -248,7 +253,9 @@ class GhostOrchestrator:
             self.is_running = False
             await flusher_task
             await close_global_browser()
-            print(f"\n\n[GHOST] Run complete. Duration: {datetime.now() - self.start_time}")
+            msg_done = f"\n\n[GHOST] Run complete. Duration: {datetime.now() - self.start_time}"
+            print(msg_done)
+            logging.info(msg_done.strip())
             
             # --- Daily Maintenance Trigger ---
             if getattr(self, "maintenance_triggered", False):
@@ -462,6 +469,7 @@ class GhostOrchestrator:
 
     async def _update_row_status(self, row_idx, status):
         """Non-blocking status update. Queues the update for the background flusher."""
+        logging.info(f"[Sheet Queue] Row {row_idx} -> {status}")
         async with self._flush_lock:
             # Check if there's already a status update for this row, update it if so
             # This prevents queue bloat if a domain moves through states faster than the flusher

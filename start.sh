@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# Ghost Unified Engine: Standalone Control Script
+# Ghost Retrival Engine: Standalone Control Script
 # 💀 "Reviving the Dead with Spectral Precision"
 
 # --- CONFIGURATION ---
@@ -151,7 +151,7 @@ run_engine() {
         return
     fi
     
-    echo -e "\033[94m[START] Launching Ghost Unified Engine (Mode: ${mode:-full}, Format: ${data_type})...\033[0m"
+    echo -e "\033[94m[START] Launching Ghost Retrival Engine (Mode: ${mode:-full}, Format: ${data_type})...\033[0m"
     if [ ! -d "$VENV_DIR" ]; then
         setup_env
     fi
@@ -215,7 +215,7 @@ install_linux_service() {
     SERVICE_FILE="$ENGINE_DIR/ghost-engine.service"
     cat <<EOF > "$SERVICE_FILE"
 [Unit]
-Description=Ghost Unified Engine (24x7 Production Automation)
+Description=Ghost Retrival Engine (24x7 Production Automation)
 After=network-online.target
 Wants=network-online.target
 

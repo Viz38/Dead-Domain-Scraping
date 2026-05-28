@@ -158,7 +158,7 @@ async def perform_maintenance():
                         continue
                         
                     logging.info(f"[Maintenance] Fetching {target_count} domains using Payload {idx + 1} ({pct}%)...")
-                    fetched = await tracxn.fetch_domains(limit=target_count, payload_override=p_cfg["payload"])
+                    fetched = await tracxn.fetch_domains(target_count=target_count, payload_override=p_cfg["payload"])
                     if fetched:
                         payload_tag = f"PASS {idx + 1}"
                         for d in fetched:

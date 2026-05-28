@@ -38,8 +38,15 @@ class TracxnClient:
                 else:
                     current_payload["size"] = batch_size
 
+                import json
                 payload_size_bytes = len(str(current_payload).encode('utf-8'))
-                logging.info(f"[TracxnClient] Sending POST to {self.endpoint} | from={current_payload['from']}, size={current_payload['size']} | Payload Size: {payload_size_bytes} bytes")
+                
+                # Full Transparency Logging
+                logging.info(f"[TracxnClient] --- API CALL START ---")
+                logging.info(f"[TracxnClient] URL: POST {self.endpoint}")
+                logging.info(f"[TracxnClient] Headers: {json.dumps(self.headers, indent=2)}")
+                logging.info(f"[TracxnClient] Body (Payload): {json.dumps(current_payload, indent=2)}")
+                logging.info(f"[TracxnClient] ---------------------")
                 
                 try:
                     response = await client.post(
@@ -49,7 +56,10 @@ class TracxnClient:
                         timeout=30.0
                     )
                     response.raise_for_status()
-                    logging.info(f"[TracxnClient] Response Status: {response.status_code}")
+                    logging.info(f"[TracxnClient] --- API RESPONSE ---")
+                    logging.info(f"[TracxnClient] Status: {response.status_code}")
+                    logging.info(f"[TracxnClient] Raw Response Content:\n{response.text}")
+                    logging.info(f"[TracxnClient] --------------------")
                     data = response.json()
                     
                     parsed_batch = self._parse_response(data)
@@ -67,10 +77,11 @@ class TracxnClient:
                         break
                         
                 except httpx.HTTPStatusError as e:
-                    logging.error(f"[TracxnClient] HTTP Error: {e.response.status_code} - {e.response.text}")
+                    logging.error(f"[TracxnClient] HTTP Error: {e.response.status_code}")
+                    logging.error(f"[TracxnClient] Error Response Body:\n{e.response.text}")
                     break
                 except Exception as e:
-                    logging.error(f"[TracxnClient] Request failed: {str(e)}")
+                    logging.error(f"[TracxnClient] Request failed Exception: {str(e)}")
                     break
 
         return all_results[:target_count]

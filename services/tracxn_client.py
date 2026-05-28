@@ -10,17 +10,19 @@ class TracxnClient:
         self.headers = self.config.get("headers", {})
         self.payloads = self.config.get("payloads", [])
         
-    async def fetch_domains(self, target_count=200, payload_override=None) -> list:
+    async def fetch_domains(self, target_count=200, payload_override=None, start_from=0) -> tuple:
         """
         Executes the API request to Tracxn to fetch domains in bulk.
         Handles pagination (size and from) to grab the target_count.
+        Returns: (results_list, new_offset, is_exhausted)
         """
         if not self.endpoint or "..." in self.endpoint:
             logging.error("[TracxnClient] Endpoint is not properly configured in .env.")
-            return []
+            return [], start_from, True
             
         all_results = []
-        current_from = 0
+        current_from = start_from
+        is_exhausted = False
         
         # Use provided payload or fallback to the first one in the list (if any)
         base_payload = payload_override if payload_override else (self.payloads[0]["payload"] if self.payloads else {})
@@ -58,6 +60,7 @@ class TracxnClient:
                     
                     if not parsed_batch:
                         logging.info("[TracxnClient] No more results returned by the API.")
+                        is_exhausted = True
                         break
                         
                     all_results.extend(parsed_batch)
@@ -65,16 +68,19 @@ class TracxnClient:
                     
                     # If we got fewer results than requested, we've hit the end
                     if len(parsed_batch) < current_payload["size"]:
+                        is_exhausted = True
                         break
                         
                 except httpx.HTTPStatusError as e:
                     logging.error(f"[TracxnClient] HTTP Error: {e.response.status_code}")
+                    is_exhausted = True
                     break
                 except Exception as e:
                     logging.error(f"[TracxnClient] Request failed Exception: {str(e)}")
+                    is_exhausted = True
                     break
 
-        return all_results[:target_count]
+        return all_results[:target_count], current_from, is_exhausted
 
     def _parse_response(self, raw_data: dict) -> list:
         """
@@ -99,8 +105,8 @@ if __name__ == "__main__":
     async def run_test():
         client = TracxnClient()
         logging.info("Starting Tracxn API Test to fetch 200 domains...")
-        results = await client.fetch_domains(target_count=200)
-        logging.info(f"Test complete. Total domains grabbed: {len(results)}")
+        results, new_offset, is_exhausted = await client.fetch_domains(target_count=200)
+        logging.info(f"Test complete. Total domains grabbed: {len(results)}. New Offset: {new_offset}. Exhausted: {is_exhausted}")
         if results:
             print("First item sample:")
             print(results[0])

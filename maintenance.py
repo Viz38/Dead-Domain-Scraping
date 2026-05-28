@@ -145,26 +145,96 @@ async def perform_maintenance():
             tracxn = TracxnClient()
             new_domains_total = []
             
-            if tracxn.payloads:
-                for idx, p_cfg in enumerate(tracxn.payloads):
-                    pct = p_cfg.get("pct", 0)
-                    target_count = int(domains_to_fetch * (pct / 100.0))
+            if not tracxn.payloads:
+                logging.error("[Maintenance] No payloads configured in .env!")
+                return
+            
+            # Load pagination state
+            state_file = "tracxn_state.json"
+            state = {}
+            if os.path.exists(state_file):
+                try:
+                    import json
+                    with open(state_file, 'r') as f:
+                        state = json.load(f)
+                except Exception as e:
+                    logging.error(f"[Maintenance] Could not load state file: {e}")
+            
+            remaining_to_fetch = domains_to_fetch
+            payload_exhaustion = [False] * len(tracxn.payloads)
+            
+            # Calculate initial targets based on pct
+            targets = []
+            for idx, p_cfg in enumerate(tracxn.payloads):
+                pct = p_cfg.get("pct", 0)
+                targets.append(int(domains_to_fetch * (pct / 100.0)))
+            
+            # Fix rounding on last target
+            if sum(targets) < domains_to_fetch:
+                targets[-1] += (domains_to_fetch - sum(targets))
+            
+            # Round-robin cascading loop
+            loop_safety = 0
+            while remaining_to_fetch > 0 and not all(payload_exhaustion):
+                loop_safety += 1
+                if loop_safety > 20: 
+                    logging.warning("[Maintenance] Cascading loop safety triggered. Breaking out.")
+                    break
                     
-                    # On the last payload, if there are rounding errors, ensure we hit the exact target
-                    if idx == len(tracxn.payloads) - 1:
-                        target_count = domains_to_fetch - len(new_domains_total)
-                        
-                    if target_count <= 0:
+                for idx, p_cfg in enumerate(tracxn.payloads):
+                    if payload_exhaustion[idx] or targets[idx] <= 0:
                         continue
                         
-                    logging.info(f"[Maintenance] Fetching {target_count} domains using Payload {idx + 1} ({pct}%)...")
-                    fetched = await tracxn.fetch_domains(target_count=target_count, payload_override=p_cfg["payload"])
+                    target_count = targets[idx]
+                    if target_count > remaining_to_fetch:
+                        target_count = remaining_to_fetch
+                        
+                    payload_id = f"payload_{idx}"
+                    start_from = state.get(payload_id, 0)
+                    
+                    logging.info(f"[Maintenance] Fetching {target_count} domains using Payload {idx + 1} (Start offset: {start_from})...")
+                    fetched, new_offset, exhausted = await tracxn.fetch_domains(
+                        target_count=target_count, 
+                        payload_override=p_cfg["payload"],
+                        start_from=start_from
+                    )
+                    
+                    state[payload_id] = new_offset
+                    
                     if fetched:
                         payload_tag = f"PASS {idx + 1}"
                         for d in fetched:
                             new_domains_total.append([d, "QUEUED", "", "", "", "", "", "", "", payload_tag])
-            else:
-                logging.error("[Maintenance] No payloads configured in .env!")
+                        
+                        fetched_len = len(fetched)
+                        remaining_to_fetch -= fetched_len
+                        targets[idx] -= fetched_len
+                    
+                    if exhausted:
+                        logging.info(f"[Maintenance] Payload {idx + 1} is globally exhausted on Tracxn.")
+                        payload_exhaustion[idx] = True
+                        
+                        # Deficit rolls over to the next available payload
+                        deficit = targets[idx]
+                        targets[idx] = 0
+                        if deficit > 0:
+                            next_idx = (idx + 1) % len(tracxn.payloads)
+                            while payload_exhaustion[next_idx] and next_idx != idx:
+                                next_idx = (next_idx + 1) % len(tracxn.payloads)
+                            if not payload_exhaustion[next_idx]:
+                                targets[next_idx] += deficit
+                                logging.info(f"[Maintenance] Rolling deficit of {deficit} over to Payload {next_idx + 1}.")
+                                
+                    if remaining_to_fetch <= 0:
+                        break
+                        
+            # Save state
+            try:
+                import json
+                with open(state_file, 'w') as f:
+                    json.dump(state, f)
+            except Exception as e:
+                logging.error(f"[Maintenance] Failed to save state file: {e}")
             
             if new_domains_total:
                 logging.info(f"[Maintenance] Successfully fetched a total of {len(new_domains_total)} domains across all payloads.")

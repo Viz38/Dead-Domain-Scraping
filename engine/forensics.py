@@ -51,6 +51,7 @@ class WaybackSource(ForensicSource):
             for start, end, limit in eras:
                 try:
                     params = {"url": domain, "output": "json", "limit": limit, "matchType": "prefix", "from": f"{start}0101000000", "to": f"{end}1231235959", "collapse": "digest", "filter": ["statuscode:200|301|302", "mimetype:text/html"]}
+                    logging.info(f"[Forensics] Querying Wayback Machine for {domain} (Era: {start}-{end})...")
                     resp = await client.get("https://web.archive.org/cdx/search/cdx", params=params)
                     if resp.status_code == 200:
                         data = resp.json()
@@ -69,6 +70,7 @@ class CommonCrawlSource(ForensicSource):
         async with httpx.AsyncClient(timeout=30, verify=False, headers=StealthNetwork.get_headers()) as client:
             for idx in indices:
                 try:
+                    logging.info(f"[Forensics] Querying CommonCrawl ({idx}) for {d}...")
                     resp = await client.get(f"https://index.commoncrawl.org/{idx}-index", params={"url": f"{d}/*", "output": "json", "limit": 100})
                     if resp.status_code == 200:
                         for line in resp.text.splitlines():
@@ -82,6 +84,7 @@ class RegionalSource(ForensicSource):
         super().__init__(n, l); self.e, self.p = e, p
     async def _execute_fetch(self, d):
         async with httpx.AsyncClient(timeout=30, verify=False, headers=StealthNetwork.get_headers()) as client:
+            logging.info(f"[Forensics] Querying Regional Archive ({self.n}) for {d}...")
             resp = await client.get(self.e, params={"url": d, "matchType": "prefix", "output": "json", "limit": 500, "collapse": "digest"})
             if resp.status_code == 200:
                 data = resp.json()

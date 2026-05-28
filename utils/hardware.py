@@ -106,5 +106,6 @@ class HardwareOptimizer:
 if __name__ == "__main__":
     opt = HardwareOptimizer()
     conc, details = opt.calculate_concurrency()
-    print(f"Dynamic Concurrency (50% Load): {conc}")
-    print(f"Details: {details}")
+    import logging
+    logging.info(f"Dynamic Concurrency (50% Load): {conc}")
+    logging.info(f"Details: {details}")

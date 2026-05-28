@@ -38,7 +38,8 @@ class TracxnClient:
                 else:
                     current_payload["size"] = batch_size
 
-                logging.info(f"[TracxnClient] Fetching batch from={current_payload['from']}, size={current_payload['size']}...")
+                payload_size_bytes = len(str(current_payload).encode('utf-8'))
+                logging.info(f"[TracxnClient] Sending POST to {self.endpoint} | from={current_payload['from']}, size={current_payload['size']} | Payload Size: {payload_size_bytes} bytes")
                 
                 try:
                     response = await client.post(
@@ -48,9 +49,11 @@ class TracxnClient:
                         timeout=30.0
                     )
                     response.raise_for_status()
+                    logging.info(f"[TracxnClient] Response Status: {response.status_code}")
                     data = response.json()
                     
                     parsed_batch = self._parse_response(data)
+                    logging.info(f"[TracxnClient] Parsed {len(parsed_batch)} domains from response.")
                     
                     if not parsed_batch:
                         logging.info("[TracxnClient] No more results returned by the API.")

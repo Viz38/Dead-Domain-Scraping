@@ -45,7 +45,7 @@ class GoogleSheetClient:
             if len(GoogleSheetClient._request_history) >= 55: # Safety margin
                 wait_time = 60 - (now - GoogleSheetClient._request_history[0])
                 if wait_time > 0:
-                    print(f"[GSHEET] Global Budget exhausted ({len(GoogleSheetClient._request_history)} req/min). Waiting {wait_time:.2f}s...")
+                    logging.warning(f"[GSHEET] Global Budget exhausted ({len(GoogleSheetClient._request_history)} req/min). Waiting {wait_time:.2f}s...")
                     await asyncio.sleep(wait_time)
             
             GoogleSheetClient._request_history.append(time.time())
@@ -67,16 +67,16 @@ class GoogleSheetClient:
                 is_server_error = isinstance(err, HttpError) and err.resp.status in [500, 502, 503, 504]
                 
                 if is_ssl:
-                    print(f"[GSHEET] SSL/Record Layer Failure detected. Re-initializing service...")
+                    logging.warning(f"[GSHEET] SSL/Record Layer Failure detected. Re-initializing service...")
                     self._refresh_service()
                 
                 if attempt == retries - 1:
-                    print(f"[GSHEET] Final failure after {retries} attempts: {err}")
+                    logging.error(f"[GSHEET] Final failure after {retries} attempts: {err}")
                     raise err
                 
                 wait_time = 15 if is_quota else (2 ** attempt) + 1
                 reason = "Quota" if is_quota else "SSL Error" if is_ssl else "Server Error" if is_server_error else "Network/Timeout"
-                print(f"[GSHEET] {reason} ({err}). Attempt {attempt+1}/{retries}. Retrying in {wait_time}s...")
+                logging.info(f"[GSHEET] {reason} ({err}). Attempt {attempt+1}/{retries}. Retrying in {wait_time}s...")
                 await asyncio.sleep(wait_time)
         return None
 
@@ -164,11 +164,10 @@ class GoogleSheetClient:
                     }
                 })
 
-            op = self.service.spreadsheets().batchUpdate(spreadsheetId=spreadsheet_id, body={"requests": requests})
             await self._execute_with_retry(op)
             return True
         except Exception as err:
-            print(f"Formatting failed: {err}")
+            logging.error(f"Formatting failed: {err}")
             return False
 
     async def format_professional_headers(self, spreadsheet_id, sources):
@@ -225,7 +224,7 @@ class GoogleSheetClient:
             if "frozen and non-frozen" in str(err):
                 logging.warning("[GSHEET] Skipping professional header merge due to frozen columns in sheet.")
                 return True
-            print(f"Styling failed: {err}")
+            logging.error(f"Styling failed: {err}")
             return False
 
     async def clear_range(self, spreadsheet_id, range_name):
@@ -233,4 +232,4 @@ class GoogleSheetClient:
         try:
             await self._execute_with_retry(op)
         except Exception as err:
-            print(f"Error clearing range: {err}")
+            logging.error(f"Error clearing range: {err}")

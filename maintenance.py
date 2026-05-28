@@ -10,7 +10,15 @@ from services.tracxn_client import TracxnClient
 # Load env variables
 load_dotenv()
 
-logging.basicConfig(level=logging.INFO, format='%(asctime)s [%(levelname)s] %(message)s')
+# Ensure logging appends to ghost.log
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s [%(levelname)s] %(message)s',
+    handlers=[
+        logging.FileHandler("ghost.log"),
+        logging.StreamHandler()
+    ]
+)
 IST = timezone(timedelta(hours=5, minutes=30))
 
 async def perform_maintenance():

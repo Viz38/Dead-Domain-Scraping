@@ -12,10 +12,15 @@ if [ -f ".env" ]; then
     GHOST_SHEET_ID=$(grep '^GHOST_SHEET_ID=' .env | tail -n 1 | cut -d '=' -f2 | tr -d '\r')
 fi
 
+log_echo() {
+    echo -e "$@"
+    echo -e "$@" | sed 's/\x1b\[[0-9;]*[a-zA-Z]//g' >> "$ENGINE_DIR/ghost.log"
+}
+
 if [ "$1" == "--daemon" ]; then
     DATA_TYPE="${2:-text}"
     if [ -z "$GHOST_SHEET_ID" ]; then
-        echo "Error: GHOST_SHEET_ID not set in .env. Run interactively first."
+        log_echo "Error: GHOST_SHEET_ID not set in .env. Run interactively first."
         exit 1
     fi
     
@@ -37,7 +42,7 @@ if [ "$1" == "--daemon" ]; then
         source "$VENV_DIR/bin/activate"
     fi
     
-    echo "Starting Ghost Engine in 24x7 Daemon Mode..."
+    log_echo "Starting Ghost Engine in 24x7 Daemon Mode..."
     
     # Ensure clean shutdown on systemctl stop
     cleanup() {
@@ -47,16 +52,16 @@ if [ "$1" == "--daemon" ]; then
     trap cleanup SIGTERM SIGINT
     
     while true; do
-        echo "[$(date)] Launching main process..."
+        log_echo "[$(date)] Launching main process..."
         python3 ghost.py "$GHOST_SHEET_ID" --mode full --data-type "$DATA_TYPE"
         exit_code=$?
         
         if [ $exit_code -eq 0 ]; then
-            echo "[$(date)] Process completed successfully. Idling for 60 seconds before next cycle..."
+            log_echo "[$(date)] Process completed successfully. Idling for 60 seconds before next cycle..."
             sleep 60 &
             wait $!
         else
-            echo "[$(date)] Process exited with code $exit_code. Auto-recovering in 10 seconds..."
+            log_echo "[$(date)] Process exited with code $exit_code. Auto-recovering in 10 seconds..."
             sleep 10 &
             wait $!
         fi
@@ -125,9 +130,9 @@ EOF
 
 # --- FUNCTIONS ---
 setup_env() {
-    echo -e "\033[93m[START] Setting up Integrated Environment (uv)...\033[0m"
+    log_echo "\033[93m[START] Setting up Integrated Environment (uv)...\033[0m"
     if ! command -v uv &> /dev/null; then
-        echo -e "\033[91m[ERROR] 'uv' not found. Installing...\033[0m"
+        log_echo "\033[91m[ERROR] 'uv' not found. Installing...\033[0m"
         curl -LsSf https://astral.sh/uv/install.sh | sh
         source $HOME/.cargo/env
     fi
@@ -137,7 +142,7 @@ setup_env() {
     source .venv/bin/activate
     uv pip install -r requirements.txt
     python3 -m playwright install chromium
-    echo -e "\033[92m[SUCCESS] Environment ready.\033[0m"
+    log_echo "\033[92m[SUCCESS] Environment ready.\033[0m"
     sleep 2
 }
 
@@ -146,12 +151,12 @@ run_engine() {
     local data_type=${2:-text}
     
     if pgrep -f "python3 ghost.py" > /dev/null || pgrep -f "start.sh --daemon" > /dev/null; then
-        echo -e "\033[91m[CRITICAL] Ghost Engine is already running! Please stop it first using STOP ALL (Option 10).\033[0m"
+        log_echo "\033[91m[CRITICAL] Ghost Engine is already running! Please stop it first using STOP ALL (Option 10).\033[0m"
         read -p "Press Enter to return..."
         return
     fi
     
-    echo -e "\033[94m[START] Launching Ghost Retrival Engine (Mode: ${mode:-full}, Format: ${data_type})...\033[0m"
+    log_echo "\033[94m[START] Launching Ghost Retrival Engine (Mode: ${mode:-full}, Format: ${data_type})...\033[0m"
     if [ ! -d "$VENV_DIR" ]; then
         setup_env
     fi
@@ -168,7 +173,7 @@ run_engine() {
 }
 
 check_updates() {
-    echo -e "\033[96m[UPDATE] Checking for new updates from git...\033[0m"
+    log_echo "\033[96m[UPDATE] Checking for new updates from git...\033[0m"
     
     REPO_URL="https://github.com/Viz38/Dead-Domain-Scraping.git"
     BRANCH="Prod"
@@ -179,13 +184,13 @@ check_updates() {
     REMOTE=$(git rev-parse FETCH_HEAD)
     
     if [ "$LOCAL" = "$REMOTE" ]; then
-        echo -e "\033[92m[UPDATE] Ghost Engine is already up-to-date.\033[0m"
+        log_echo "\033[92m[UPDATE] Ghost Engine is already up-to-date.\033[0m"
         sleep 2
     else
-        echo -e "\033[93m[UPDATE] Updates found! Pulling latest changes...\033[0m"
+        log_echo "\033[93m[UPDATE] Updates found! Pulling latest changes...\033[0m"
         git pull "$REPO_URL" "$BRANCH"
-        echo -e "\033[92m[SUCCESS] Engine updated successfully!\033[0m"
-        echo -e "\033[91m[CRITICAL] Please manually restart the script to apply changes.\033[0m"
+        log_echo "\033[92m[SUCCESS] Engine updated successfully!\033[0m"
+        log_echo "\033[91m[CRITICAL] Please manually restart the script to apply changes.\033[0m"
         exit 0
     fi
 }
@@ -194,19 +199,19 @@ install_linux_service() {
     local s_data_type=$1
     
     if pgrep -f "python3 ghost.py" > /dev/null || pgrep -f "start.sh --daemon" > /dev/null; then
-        echo -e "\033[91m[CRITICAL] Ghost Engine is already running! Please stop it first using STOP ALL (Option 10) before installing the service.\033[0m"
+        log_echo "\033[91m[CRITICAL] Ghost Engine is already running! Please stop it first using STOP ALL (Option 10) before installing the service.\033[0m"
         read -p "Press Enter to return..."
         return
     fi
     
-    echo -e "\033[96m[SERVICE] Setting up 24x7 persistent systemd service...\033[0m"
+    log_echo "\033[96m[SERVICE] Setting up 24x7 persistent systemd service...\033[0m"
     if [ "$(uname)" == "Darwin" ]; then
-        echo -e "\033[93m[WARNING] You are on macOS. This feature is intended for Linux.\033[0m"
+        log_echo "\033[93m[WARNING] You are on macOS. This feature is intended for Linux.\033[0m"
         read -p "   Do you still want to generate the service file for manual copy? (y/n) >> " proceed_mac
         if [[ "$proceed_mac" != "y" ]]; then return; fi
     else
         if ! command -v systemctl &> /dev/null; then
-            echo -e "\033[91m[ERROR] systemctl not found! This script requires systemd.\033[0m"
+            log_echo "\033[91m[ERROR] systemctl not found! This script requires systemd.\033[0m"
             read -p "Press Enter to return..."
             return
         fi
@@ -234,42 +239,42 @@ LimitNOFILE=65535
 WantedBy=multi-user.target
 EOF
 
-    echo -e "\033[92m[SUCCESS] Service file created at: $SERVICE_FILE\033[0m"
+    log_echo "\033[92m[SUCCESS] Service file created at: $SERVICE_FILE\033[0m"
     
     if command -v systemctl &> /dev/null && [ "$(uname)" == "Linux" ]; then
-        echo -e "\033[93m[SERVICE] Requesting sudo privileges to install and start the service...\033[0m"
+        log_echo "\033[93m[SERVICE] Requesting sudo privileges to install and start the service...\033[0m"
         sudo mv "$SERVICE_FILE" /etc/systemd/system/ghost-engine.service
         sudo systemctl daemon-reload
         sudo systemctl enable ghost-engine.service
         sudo systemctl restart ghost-engine.service
-        echo -e "\033[92m[SUCCESS] Service 'ghost-engine.service' installed and started!\033[0m"
+        log_echo "\033[92m[SUCCESS] Service 'ghost-engine.service' installed and started!\033[0m"
         echo -e "Use 'sudo systemctl status ghost-engine.service' to check status."
         echo -e "Use 'sudo journalctl -u ghost-engine.service -f' to view live logs."
     else
-        echo -e "\033[93m[INFO] Service file generated. Since systemd/sudo is not available, we will spawn the daemon in the background using nohup.\033[0m"
+        log_echo "\033[93m[INFO] Service file generated. Since systemd/sudo is not available, we will spawn the daemon in the background using nohup.\033[0m"
         nohup /bin/bash "$ENGINE_DIR/start.sh" --daemon "$s_data_type" > "$ENGINE_DIR/ghost_daemon.log" 2>&1 &
-        echo -e "\033[92m[SUCCESS] Ghost daemon spawned in background! PID: $!\033[0m"
+        log_echo "\033[92m[SUCCESS] Ghost daemon spawned in background! PID: $!\033[0m"
     fi
     
     show_status
 }
 
 stop_all_services() {
-    echo -e "\033[93m[STOP] Terminating all Ghost Engine processes and services...\033[0m"
+    log_echo "\033[93m[STOP] Terminating all Ghost Engine processes and services...\033[0m"
     
     if command -v systemctl &> /dev/null && [ "$(uname)" == "Linux" ]; then
-        echo -e "\033[96m[STOP] Stopping and disabling systemd service (if running)...\033[0m"
+        log_echo "\033[96m[STOP] Stopping and disabling systemd service (if running)...\033[0m"
         sudo systemctl stop ghost-engine.service 2>/dev/null || true
         sudo systemctl disable ghost-engine.service 2>/dev/null || true
     fi
     
-    echo -e "\033[96m[STOP] Killing running daemon processes...\033[0m"
+    log_echo "\033[96m[STOP] Killing running daemon processes...\033[0m"
     pkill -f "start.sh --daemon" || true
     
-    echo -e "\033[96m[STOP] Killing running python script processes (ghost.py)...\033[0m"
+    log_echo "\033[96m[STOP] Killing running python script processes (ghost.py)...\033[0m"
     pkill -f "python3 ghost.py" || true
     
-    echo -e "\033[96m[STOP] Cleaning up orphaned browser processes...\033[0m"
+    log_echo "\033[96m[STOP] Cleaning up orphaned browser processes...\033[0m"
     pkill -f "playwright" || true
     pkill -f "chromium" || true
     
@@ -277,12 +282,12 @@ stop_all_services() {
         rm -f "/tmp/ghost_engine.lock"
     fi
     
-    echo -e "\033[92m[SUCCESS] All Ghost Engine operations have been forcefully stopped.\033[0m"
+    log_echo "\033[92m[SUCCESS] All Ghost Engine operations have been forcefully stopped.\033[0m"
     sleep 2
 }
 
 show_status() {
-    echo -e "\033[96m[STATUS] Checking Ghost Engine processes...\033[0m"
+    log_echo "\033[96m[STATUS] Checking Ghost Engine processes...\033[0m"
     echo "--------------------------------------------------------"
     
     if command -v systemctl &> /dev/null && [ "$(uname)" == "Linux" ]; then
@@ -378,32 +383,32 @@ while true; do
             setup_env
             ;;
         7)
-            echo -e "\033[97m[DIAGNOSTICS] Checking system...\033[0m"
+            log_echo "\033[97m[DIAGNOSTICS] Checking system...\033[0m"
             sysctl -n hw.memsize | awk '{print "RAM: " $1/1024/1024/1024 " GB"}'
             sysctl -n hw.ncpu | awk '{print "Cores: " $1}'
             python3 --version
             uv --version
-            echo -e "\033[96m[DIAGNOSTICS] Checking missing dependencies...\033[0m"
+            log_echo "\033[96m[DIAGNOSTICS] Checking missing dependencies...\033[0m"
             if [ -d "$VENV_DIR" ]; then
                 cd "$ENGINE_DIR"
                 source .venv/bin/activate
                 MISSING=$(uv pip install -r requirements.txt --dry-run 2>&1 | grep -i 'Would install')
                 if [ -n "$MISSING" ]; then
-                    echo -e "\033[91m[WARNING] Missing dependencies detected. Run option [6] SETUP ENGINE.\033[0m"
+                    log_echo "\033[91m[WARNING] Missing dependencies detected. Run option [6] SETUP ENGINE.\033[0m"
                     uv pip install -r requirements.txt --dry-run | grep -i 'Would install' -A 20
                 else
-                    echo -e "\033[92m[SUCCESS] All dependencies are installed.\033[0m"
+                    log_echo "\033[92m[SUCCESS] All dependencies are installed.\033[0m"
                 fi
             else
-                echo -e "\033[91m[ERROR] Environment not set up. Run option [6] SETUP ENGINE.\033[0m"
+                log_echo "\033[91m[ERROR] Environment not set up. Run option [6] SETUP ENGINE.\033[0m"
             fi
             read -p "Press Enter to return..."
             ;;
         8)
-            echo -e "\033[93m[LOGS] Clearing log files...\033[0m"
+            log_echo "\033[93m[LOGS] Clearing log files...\033[0m"
             > ghost.log
             > spectral.log
-            echo -e "\033[92m[SUCCESS] Logs cleared.\033[0m"
+            log_echo "\033[92m[SUCCESS] Logs cleared.\033[0m"
             sleep 1
             ;;
         9)

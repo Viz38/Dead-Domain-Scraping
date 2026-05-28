@@ -32,16 +32,20 @@ async def get_global_browser():
     global _BROWSER_INSTANCE
     async with _BROWSER_LOCK:
         if _BROWSER_INSTANCE is None or not _BROWSER_INSTANCE.is_connected():
+            logging.info("[SCRAPER] Spinning up global Stealth Chromium instance...")
             pw = await async_playwright().start()
             _BROWSER_INSTANCE = await pw.chromium.launch(headless=True, args=["--disable-blink-features=AutomationControlled"])
+            logging.info("[SCRAPER] Global Chromium instance ready.")
         return _BROWSER_INSTANCE
 
 async def close_global_browser():
     global _BROWSER_INSTANCE
     async with _BROWSER_LOCK:
         if _BROWSER_INSTANCE:
+            logging.info("[SCRAPER] Shutting down global Chromium instance...")
             await _BROWSER_INSTANCE.close()
             _BROWSER_INSTANCE = None
+            logging.info("[SCRAPER] Chromium shutdown complete.")
 
 # --- CONTENT EXTRACTION ---
 def html_to_markdown(html):
@@ -134,11 +138,14 @@ async def check_adversarial_parking(page):
         content = (await page.content()).lower()
         title = (await page.title()).lower()
         if any(kw in content or kw in title for kw in ["blocked by robots.txt", "robots.txt exclusion", "retroactively excluded"]):
+            logging.info(f"[SCRAPER][Block] Robots.txt hit for {page.url}")
             return "BLOCK: ROBOTS"
         if is_parked_content(content, title):
+            logging.info(f"[SCRAPER][Block] Parked Domain hit for {page.url}")
             return "BLOCK: PARKED"
         return False
-    except: return False
+    except Exception as e: 
+        return False
 
 async def stealth_probe(url): return await scrape_url(url)
 async def is_parked(page): return await check_adversarial_parking(page)

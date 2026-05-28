@@ -163,6 +163,20 @@ async def perform_maintenance():
             remaining_to_fetch = domains_to_fetch
             payload_exhaustion = [False] * len(tracxn.payloads)
             
+            # Load duplicate checking cache
+            seen_cache_file = "seen_domains.txt"
+            seen_cache = set()
+            if os.path.exists(seen_cache_file):
+                with open(seen_cache_file, "r") as f:
+                    for line in f:
+                        if line.strip():
+                            seen_cache.add(line.strip().lower())
+                            
+            # Add currently queued domains to seen cache so we don't re-queue them
+            for idx, row in enumerate(rows):
+                if idx > 0 and len(row) > 0 and row[0].strip():
+                    seen_cache.add(row[0].strip().lower())
+            
             # Calculate initial targets based on pct
             targets = []
             for idx, p_cfg in enumerate(tracxn.payloads):
@@ -177,8 +191,8 @@ async def perform_maintenance():
             loop_safety = 0
             while remaining_to_fetch > 0 and not all(payload_exhaustion):
                 loop_safety += 1
-                if loop_safety > 20: 
-                    logging.warning("[Maintenance] Cascading loop safety triggered. Breaking out.")
+                if loop_safety > 100: 
+                    logging.warning("[Maintenance] Cascading loop safety triggered (possible infinite duplicates). Breaking out.")
                     break
                     
                 for idx, p_cfg in enumerate(tracxn.payloads):
@@ -203,12 +217,22 @@ async def perform_maintenance():
                     
                     if fetched:
                         payload_tag = f"PASS {idx + 1}"
+                        valid_fetched = []
+                        
                         for d in fetched:
+                            d_clean = d.strip().lower()
+                            if d_clean and d_clean not in seen_cache:
+                                valid_fetched.append(d)
+                                seen_cache.add(d_clean)
+                                
+                        for d in valid_fetched:
                             new_domains_total.append([d, "QUEUED", "", "", "", "", "", "", "", payload_tag])
                         
-                        fetched_len = len(fetched)
+                        fetched_len = len(valid_fetched)
                         remaining_to_fetch -= fetched_len
                         targets[idx] -= fetched_len
+                        
+                        logging.info(f"[Maintenance] Kept {fetched_len} unique domains out of {len(fetched)} fetched.")
                     
                     if exhausted:
                         logging.info(f"[Maintenance] Payload {idx + 1} is globally exhausted on Tracxn.")
@@ -237,7 +261,7 @@ async def perform_maintenance():
                 logging.error(f"[Maintenance] Failed to save state file: {e}")
             
             if new_domains_total:
-                logging.info(f"[Maintenance] Successfully fetched a total of {len(new_domains_total)} domains across all payloads.")
+                logging.info(f"[Maintenance] Successfully fetched a total of {len(new_domains_total)} unique domains across all payloads.")
                 
                 append_op = sheet_client.service.spreadsheets().values().append(
                     spreadsheetId=sheet_id,
@@ -248,6 +272,14 @@ async def perform_maintenance():
                 )
                 await sheet_client._execute_with_retry(append_op)
                 logging.info(f"[Maintenance] Successfully appended {len(new_domains_total)} new domains to Google Sheet.")
+                
+                # Append new domains to seen_cache_file
+                try:
+                    with open(seen_cache_file, "a") as f:
+                        for row in new_domains_total:
+                            f.write(f"{row[0].strip().lower()}\n")
+                except Exception as e:
+                    logging.error(f"[Maintenance] Failed to write to {seen_cache_file}: {e}")
             else:
                 logging.info("[Maintenance] No new domains returned from Tracxn.")
         except Exception as e:

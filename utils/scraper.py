@@ -23,19 +23,40 @@ class StealthProvider:
         if referer: headers["Referer"] = referer
         return headers
 
+# --- GLOBAL HTTP POOL (Fixes Socket Exhaustion) ---
+_HTTP_CLIENT = None
+
+def get_http_client():
+    global _HTTP_CLIENT
+    if _HTTP_CLIENT is None or _HTTP_CLIENT.is_closed:
+        _HTTP_CLIENT = httpx.AsyncClient(timeout=30, verify=False, follow_redirects=True)
+    return _HTTP_CLIENT
+
 # --- GLOBAL BROWSER ---
 _BROWSER_INSTANCE = None
+_BROWSER_USAGE_COUNT = 0
 _BROWSER_LOCK = asyncio.Lock()
 page_semaphore = asyncio.Semaphore(12)
 
 async def get_global_browser():
-    global _BROWSER_INSTANCE
+    global _BROWSER_INSTANCE, _BROWSER_USAGE_COUNT
     async with _BROWSER_LOCK:
+        if _BROWSER_INSTANCE is not None and _BROWSER_USAGE_COUNT > 200:
+            logging.info(f"[SCRAPER] Browser reached {_BROWSER_USAGE_COUNT} uses. Recycling to prevent memory bloat.")
+            try:
+                await _BROWSER_INSTANCE.close()
+            except Exception:
+                pass
+            _BROWSER_INSTANCE = None
+
         if _BROWSER_INSTANCE is None or not _BROWSER_INSTANCE.is_connected():
             logging.info("[SCRAPER] Spinning up global Stealth Chromium instance...")
             pw = await async_playwright().start()
             _BROWSER_INSTANCE = await pw.chromium.launch(headless=True, args=["--disable-blink-features=AutomationControlled"])
+            _BROWSER_USAGE_COUNT = 0
             logging.info("[SCRAPER] Global Chromium instance ready.")
+        
+        _BROWSER_USAGE_COUNT += 1
         return _BROWSER_INSTANCE
 
 async def close_global_browser():
@@ -78,8 +99,10 @@ def html_to_markdown(html):
         # Hard signature safety block for Internet Archive sitemap page leaks
         c_lower = text.lower()
         if "ask the publishers" in c_lower and "grateful dead" in c_lower and "internet archive audio" in c_lower:
+            soup.decompose()
             return ""
             
+        soup.decompose()
         return text
     except: return ""
 
@@ -163,18 +186,18 @@ async def scrape_url(url, browser=None):
     if is_ia and "id_/" not in url: furl = re.sub(r"/web/(\d+)/", r"/web/\1id_/", url)
     
     try:
-        async with httpx.AsyncClient(timeout=30, verify=False, follow_redirects=True, headers=StealthProvider.get_headers(ref)) as client:
-            resp = await client.get(furl)
-            if resp.status_code == 200:
-                c = html_to_markdown(resp.text)
-                if "blocked by robots.txt" in c.lower():
-                    return "BLOCK: ROBOTS"
-                if is_parked_content(resp.text, "") or is_parked_content(c, ""):
-                    return "BLOCK: PARKED"
-                if len(c) > 300:
-                    return {"html": resp.text, "text": c}
-            else:
-                logging.info(f"[SCRAPER][FastPath] HTTP {resp.status_code} for {furl}")
+        client = get_http_client()
+        resp = await client.get(furl, headers=StealthProvider.get_headers(ref))
+        if resp.status_code == 200:
+            c = html_to_markdown(resp.text)
+            if "blocked by robots.txt" in c.lower():
+                return "BLOCK: ROBOTS"
+            if is_parked_content(resp.text, "") or is_parked_content(c, ""):
+                return "BLOCK: PARKED"
+            if len(c) > 300:
+                return {"html": resp.text, "text": c}
+        else:
+            logging.info(f"[SCRAPER][FastPath] HTTP {resp.status_code} for {furl}")
     except Exception as e:
         logging.info(f"[SCRAPER][FastPath] Error: {e}")
 

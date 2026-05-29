@@ -47,50 +47,55 @@ class WaybackSource(ForensicSource):
     async def _execute_fetch(self, domain):
         results = []
         eras = [("2016", "2026", 400), ("2006", "2015", 300), ("1995", "2005", 200)]
-        async with httpx.AsyncClient(timeout=45, verify=False, headers=StealthNetwork.get_headers()) as client:
-            for start, end, limit in eras:
-                try:
-                    params = {"url": domain, "output": "json", "limit": limit, "matchType": "prefix", "from": f"{start}0101000000", "to": f"{end}1231235959", "collapse": "digest", "filter": ["statuscode:200|301|302", "mimetype:text/html"]}
-                    logging.info(f"[Forensics] Querying Wayback Machine for {domain} (Era: {start}-{end})...")
-                    resp = await client.get("https://web.archive.org/cdx/search/cdx", params=params)
-                    if resp.status_code == 200:
-                        data = resp.json()
-                        if len(data) <= 1: continue
-                        h = data[0]
-                        for line in data[1:]:
-                            item = dict(zip(h, line))
-                            results.append({"url": f"https://web.archive.org/web/{item['timestamp']}id_/{item['original']}", "timestamp": item["timestamp"], "source": "Wayback", "digest": item["digest"], "length": int(item.get("length", 0)), "is_root": item['original'].strip("/").count("/") <= 2})
-                except: continue
+        from utils.scraper import get_http_client
+        client = get_http_client()
+        for start, end, limit in eras:
+            try:
+                params = {"url": domain, "output": "json", "limit": limit, "matchType": "prefix", "from": f"{start}0101000000", "to": f"{end}1231235959", "collapse": "digest", "filter": ["statuscode:200|301|302", "mimetype:text/html"]}
+                logging.info(f"[Forensics] Querying Wayback Machine for {domain} (Era: {start}-{end})...")
+                resp = await client.get("https://web.archive.org/cdx/search/cdx", params=params, headers=StealthNetwork.get_headers())
+                if resp.status_code == 200:
+                    data = resp.json()
+                    if len(data) <= 1: continue
+                    h = data[0]
+                    for line in data[1:]:
+                        item = dict(zip(h, line))
+                        results.append({"url": f"https://web.archive.org/web/{item['timestamp']}id_/{item['original']}", "timestamp": item["timestamp"], "source": "Wayback", "digest": item["digest"], "length": int(item.get("length", 0)), "is_root": item['original'].strip("/").count("/") <= 2})
+            except: continue
         return results
 
 class CommonCrawlSource(ForensicSource):
     async def _execute_fetch(self, d):
         results = []
         indices = ["CC-MAIN-2024-10", "CC-MAIN-2023-50", "CC-MAIN-2023-23"]
-        async with httpx.AsyncClient(timeout=30, verify=False, headers=StealthNetwork.get_headers()) as client:
-            for idx in indices:
-                try:
-                    logging.info(f"[Forensics] Querying CommonCrawl ({idx}) for {d}...")
-                    resp = await client.get(f"https://index.commoncrawl.org/{idx}-index", params={"url": f"{d}/*", "output": "json", "limit": 100})
-                    if resp.status_code == 200:
-                        for line in resp.text.splitlines():
-                            item = json.loads(line)
-                            results.append({"url": f"https://commoncrawl.s3.amazonaws.com/{item['filename']}", "timestamp": item["timestamp"], "source": f"CC-{idx}", "digest": item["digest"], "length": int(item.get("length", 0)), "is_root": True})
-                except: continue
+        from utils.scraper import get_http_client
+        client = get_http_client()
+        for idx in indices:
+            try:
+                logging.info(f"[Forensics] Querying CommonCrawl ({idx}) for {d}...")
+                resp = await client.get(f"https://index.commoncrawl.org/{idx}-index", params={"url": f"{d}/*", "output": "json", "limit": 100}, headers=StealthNetwork.get_headers())
+                if resp.status_code == 200:
+                    for line in resp.text.splitlines():
+                        item = json.loads(line)
+                        results.append({"url": f"https://commoncrawl.s3.amazonaws.com/{item['filename']}", "timestamp": item["timestamp"], "source": f"CC-{idx}", "digest": item["digest"], "length": int(item.get("length", 0)), "is_root": True})
+            except: continue
         return results
 
 class RegionalSource(ForensicSource):
     def __init__(self, n, e, p, l):
         super().__init__(n, l); self.e, self.p = e, p
     async def _execute_fetch(self, d):
-        async with httpx.AsyncClient(timeout=30, verify=False, headers=StealthNetwork.get_headers()) as client:
-            logging.info(f"[Forensics] Querying Regional Archive ({self.n}) for {d}...")
-            resp = await client.get(self.e, params={"url": d, "matchType": "prefix", "output": "json", "limit": 500, "collapse": "digest"})
+        from utils.scraper import get_http_client
+        client = get_http_client()
+        logging.info(f"[Forensics] Querying Regional Archive ({self.n}) for {d}...")
+        try:
+            resp = await client.get(self.e, params={"url": d, "matchType": "prefix", "output": "json", "limit": 500, "collapse": "digest"}, headers=StealthNetwork.get_headers())
             if resp.status_code == 200:
                 data = resp.json()
                 if len(data) <= 1: return []
                 h = data[0]
                 return [{"url": self.p.format(ts=i[h.index('timestamp')], url=i[h.index('original')]), "timestamp": i[h.index('timestamp')], "source": self.n, "digest": i[h.index('digest')], "length": int(i[h.index('length')]), "is_root": True} for i in data[1:]]
+        except Exception: pass
         return []
 
 class ForensicEngine:

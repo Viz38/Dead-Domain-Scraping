@@ -393,54 +393,9 @@ class GhostOrchestrator:
         is_failed_scrape = (self.mode == "search_only") or not combined_content or (current_len < 250 and total_fidelity < 1)
         
         if is_failed_scrape:
-            logging.info(f"[GHOST][Fallback] Primary scraping sparse/failed for {domain}. Triggering Web Search Fallback...")
-            
-            # Dynamically import fallback services and utilities
-            from utils.search_matrix import extract_company_name, generate_company_queries
-            from utils.target_selector import select_best_candidate
-            from utils.data_assembler import assemble_metadata_payload
-            from services.search_client import SearchClient
-            from services.linkedin_company_scraper import LinkedInCompanyScraper
-            
-            company_name = extract_company_name(domain)
-            queries = generate_company_queries(domain, company_name)
-            
-            search_client = SearchClient()
-            candidates = []
-            
-            # Execute top 2 prioritized queries
-            for q in queries[:2]:
-                results = await search_client.search(q)
-                candidates.extend(results)
-                
-            # Evaluate candidates with Multi-Factor Target Selection
-            best_candidate = select_best_candidate(candidates, domain, company_name, threshold=50)
-            
-            if best_candidate:
-                logging.info(f"[GHOST][Fallback] Valid target verified: {best_candidate['link']}")
-                
-                # Scrape verified LinkedIn Company Page
-                company_scraper = LinkedInCompanyScraper()
-                company_data = await company_scraper.scrape_company(best_candidate["link"])
-                
-                # Cross-verify listed website domain
-                profile_website = company_data.get("website", "").lower()
-                clean_target = domain.lower().strip()
-                
-                if profile_website and clean_target not in profile_website:
-                    logging.warning(f"[GHOST][Fallback] Website mismatch on profile: {profile_website} vs target {domain}. Discarding target.")
-                    await self._finalize_hit(row_idx, domain, "", "NONE_FOUND", [], total_hits, latest_ts, oldest_ts, final_link, status="BLOCK: NO_VALID_TARGET")
-                    return False
-                else:
-                    snippets = [c["snippet"] for c in candidates[:4]]
-                    fallback_payload_html = assemble_metadata_payload(domain, snippets, company_data)
-                    combined_content = [fallback_payload_html]
-                    combined_text_for_checking = [fallback_payload_html] # Fallback metadata is mostly text/json
-                    logging.info(f"[GHOST][Fallback] Successfully gathered verified fallback data for {domain}")
-            else:
-                logging.warning(f"[GHOST][Fallback] No search result passed validation cutoff for {domain}")
-                await self._finalize_hit(row_idx, domain, "", "NONE_FOUND", [], total_hits, latest_ts, oldest_ts, final_link, status="BLOCK: NO_VALID_TARGET")
-                return False
+            logging.warning(f"[GHOST][Fallback] Primary scraping sparse/failed for {domain}. Fallback disabled.")
+            await self._finalize_hit(row_idx, domain, "", "NONE_FOUND", [], total_hits, latest_ts, oldest_ts, final_link, status="BLOCK: NO_VALID_TARGET")
+            return False
 
         final_data = "\n\n---\n\n".join(combined_text_for_checking) if self.data_type == "text" else "\n\n---\n\n".join(combined_content)
         await self._finalize_hit(row_idx, domain, final_data, "WEB_ARCHIVE", [domain], total_hits, _format_ts(latest_ts), _format_ts(oldest_ts), final_link)

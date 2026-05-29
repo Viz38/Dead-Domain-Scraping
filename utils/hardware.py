@@ -101,6 +101,10 @@ class HardwareOptimizer:
         if specs["gpu_available"]:
             concurrency = int(concurrency * 1.2)
             
+        # Hard cap of 5 for Linux devices as requested
+        if specs["os"] == "Linux":
+            concurrency = min(concurrency, 5)
+            
         return int(concurrency), specs
 
 if __name__ == "__main__":

@@ -1,5 +1,5 @@
 import pytest
-from unittest.mock import AsyncMock, patch, MagicMock
+from unittest.mock import AsyncMock, patch, MagicMock, mock_open
 
 @pytest.mark.asyncio
 async def test_maintenance_moves_failed_rows():
@@ -8,7 +8,8 @@ async def test_maintenance_moves_failed_rows():
     with patch('maintenance.GoogleSheetClient') as mock_client_cls, \
          patch('maintenance.TracxnClient') as mock_tracxn_cls, \
          patch('maintenance.os.getenv') as mock_getenv, \
-         patch('maintenance.os.makedirs'):
+         patch('maintenance.os.makedirs'), \
+         patch('builtins.open', mock_open()):
         
         # Setup env vars
         def getenv_side_effect(key, default=None):

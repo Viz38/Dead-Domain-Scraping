@@ -69,16 +69,25 @@ async def perform_maintenance():
             
     # 2. Log and Delete Completed Rows
     if completed_domains:
-        # Create DailyLogs directory
-        os.makedirs("DailyLogs", exist_ok=True)
         date_str = datetime.now(IST).strftime("%d%b%Y").upper() # e.g. 27MAY2026
-        log_file = f"DailyLogs/Processed-{date_str}.log"
         
-        with open(log_file, "a") as f:
-            for d in completed_domains:
-                if d.strip():
-                    f.write(f"{d}\n")
-        logging.info(f"[Maintenance] Logged {len(completed_domains)} completed domains to {log_file}")
+        # Create date-specific folder inside DailyLogs
+        daily_folder = os.path.join("DailyLogs", date_str)
+        os.makedirs(daily_folder, exist_ok=True)
+        
+        def write_pass_log(pass_num, pass_rows):
+            if not pass_rows: return
+            log_file = os.path.join(daily_folder, f"Pass{pass_num}-Success-{date_str}.log")
+            with open(log_file, "a") as f:
+                for r in pass_rows:
+                    if len(r) > 0 and r[0].strip():
+                        f.write(f"{r[0].strip()}\n")
+                        
+        write_pass_log(1, p1_success)
+        write_pass_log(2, p2_success)
+        write_pass_log(3, p3_success)
+        
+        logging.info(f"[Maintenance] Logged {len(completed_domains)} completed domains into {daily_folder}")
         
         # Fetch the internal sheetId for the "Console" sheet
         try:

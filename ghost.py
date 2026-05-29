@@ -177,7 +177,7 @@ class GhostOrchestrator:
         # Build pending_rows early to get accurate count of non-empty domains
         pending_rows = []
         if self.mode == "search_only":
-            for row_idx in range(2, total_rows + 1):
+            for row_idx in range(3, total_rows + 1):
                 row = sheet_data[row_idx-1]
                 domain = row[0].strip() if len(row) > 0 else ""
                 if not domain: continue
@@ -187,7 +187,7 @@ class GhostOrchestrator:
                 if not is_scraped:
                     pending_rows.append((domain, row_idx))
         else:
-            for row_idx in range(2, total_rows + 1):
+            for row_idx in range(3, total_rows + 1):
                 row = sheet_data[row_idx-1]
                 domain = row[0].strip() if len(row) > 0 else ""
                 status = row[1].strip() if len(row) > 1 else ""
@@ -211,7 +211,7 @@ class GhostOrchestrator:
         if self.force_domain:
             pending_rows = [p for p in pending_rows if p[0] == self.force_domain]
             if not pending_rows:
-                for i, r in enumerate(sheet_data[1:], start=2):
+                for i, r in enumerate(sheet_data[2:], start=3):
                     if len(r) > 0 and r[0].strip() == self.force_domain:
                         pending_rows = [(r[0].strip(), i)]
                         break

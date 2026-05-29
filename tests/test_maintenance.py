@@ -31,7 +31,8 @@ async def test_maintenance_moves_failed_rows():
         
         # Setup mock rows
         mock_client.get_all_rows.return_value = [
-            ["Domain", "Scan Status", "C", "D", "E", "F", "G", "H", "I", "Payload"],
+            ["Header Row 1", "Scan Status", "C", "D", "E", "F", "G", "H", "I", "Payload"],
+            ["Header Row 2", "", "", "", "", "", "", "", "", ""],
             ["success.com", "SUCCESS", "", "", "", "", "", "", "", "PASS 1"],
             ["failed.com", "BLOCK: NO_VALID_TARGET", "", "", "", "", "", "", "", "PASS 2"],
             ["queued.com", "QUEUED", "", "", "", "", "", "", "", "PASS 3"],
@@ -74,6 +75,6 @@ async def test_maintenance_moves_failed_rows():
         delete_requests = batch_update_calls[0].kwargs['body']['requests']
         assert len(delete_requests) == 2, "Should delete exactly 2 rows"
         
-        # The deletions should be in reverse order (indices 2 and 1)
-        assert delete_requests[0]['deleteDimension']['range']['startIndex'] == 2
-        assert delete_requests[1]['deleteDimension']['range']['startIndex'] == 1
+        # The deletions should be in reverse order (indices 3 and 2)
+        assert delete_requests[0]['deleteDimension']['range']['startIndex'] == 3
+        assert delete_requests[1]['deleteDimension']['range']['startIndex'] == 2

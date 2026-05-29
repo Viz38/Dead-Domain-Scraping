@@ -65,3 +65,14 @@ async def test_maintenance_moves_failed_rows():
         
         assert len(p2_calls) == 1, "Failed row was not appended to success sheets"
         assert p2_calls[0].kwargs['body']['values'][0][0] == 'failed.com', "Failed row was not appended correctly"
+        
+        # Check that both SUCCESS and BLOCK rows are queued for deletion
+        batch_update_calls = mock_client.service.spreadsheets().batchUpdate.call_args_list
+        assert len(batch_update_calls) == 1, "Batch update for deletions was not called"
+        
+        delete_requests = batch_update_calls[0].kwargs['body']['requests']
+        assert len(delete_requests) == 2, "Should delete exactly 2 rows"
+        
+        # The deletions should be in reverse order (indices 2 and 1)
+        assert delete_requests[0]['deleteDimension']['range']['startIndex'] == 2
+        assert delete_requests[1]['deleteDimension']['range']['startIndex'] == 1

@@ -242,16 +242,15 @@ async def perform_maintenance():
                         logging.info(f"[Maintenance] Payload {idx + 1} is globally exhausted on Tracxn.")
                         payload_exhaustion[idx] = True
                         
-                        # Deficit rolls over to the next available payload
+                        # Deficit rolls over to Payload 1 (as requested by user)
                         deficit = targets[idx]
                         targets[idx] = 0
                         if deficit > 0:
-                            next_idx = (idx + 1) % len(tracxn.payloads)
-                            while payload_exhaustion[next_idx] and next_idx != idx:
-                                next_idx = (next_idx + 1) % len(tracxn.payloads)
-                            if not payload_exhaustion[next_idx]:
-                                targets[next_idx] += deficit
-                                logging.info(f"[Maintenance] Rolling deficit of {deficit} over to Payload {next_idx + 1}.")
+                            if not payload_exhaustion[0]:
+                                targets[0] += deficit
+                                logging.info(f"[Maintenance] Rolling deficit of {deficit} over to Payload 1.")
+                            else:
+                                logging.info(f"[Maintenance] Payload 1 is also exhausted. Cannot roll over {deficit}.")
                                 
                     if remaining_to_fetch <= 0:
                         break

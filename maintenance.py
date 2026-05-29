@@ -58,12 +58,11 @@ async def perform_maintenance():
             completed_domains.append(domain)
             rows_to_delete.append(idx) # 0-indexed row
             
-            if status == "SUCCESS":
-                payload_tag = row[9] if len(row) > 9 else "PASS 1"
-                row_to_append = row[:9] # Extract pure data A-I, dropping the tag
-                if payload_tag == "PASS 1": p1_success.append(row_to_append)
-                elif payload_tag == "PASS 2": p2_success.append(row_to_append)
-                elif payload_tag == "PASS 3": p3_success.append(row_to_append)
+            payload_tag = row[9] if len(row) > 9 else "PASS 1"
+            row_to_append = row[:9] # Extract pure data A-I, dropping the tag
+            if payload_tag == "PASS 1": p1_success.append(row_to_append)
+            elif payload_tag == "PASS 2": p2_success.append(row_to_append)
+            elif payload_tag == "PASS 3": p3_success.append(row_to_append)
         else:
             if domain.strip():
                 queued_valid_domains += 1

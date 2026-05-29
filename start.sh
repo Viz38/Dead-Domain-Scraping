@@ -227,6 +227,7 @@ install_linux_service() {
 Description=Ghost Retrival Engine (24x7 Production Automation)
 After=network-online.target
 Wants=network-online.target
+StartLimitIntervalSec=0
 
 [Service]
 Type=simple
@@ -235,9 +236,9 @@ WorkingDirectory=$ENGINE_DIR
 ExecStart=/bin/bash $ENGINE_DIR/start.sh --daemon $s_data_type
 Restart=always
 RestartSec=10
-StartLimitIntervalSec=0
 SyslogIdentifier=ghost-engine
 LimitNOFILE=65535
+Environment="PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:$HOME/.local/bin:$HOME/.cargo/bin"
 
 [Install]
 WantedBy=multi-user.target
@@ -267,9 +268,8 @@ stop_all_services() {
     log_echo "\033[93m[STOP] Terminating all Ghost Engine processes and services...\033[0m"
     
     if command -v systemctl &> /dev/null && [ "$(uname)" == "Linux" ]; then
-        log_echo "\033[96m[STOP] Stopping and disabling systemd service (if running)...\033[0m"
+        log_echo "\033[96m[STOP] Stopping systemd service (if running)...\033[0m"
         sudo systemctl stop ghost-engine.service 2>/dev/null || true
-        sudo systemctl disable ghost-engine.service 2>/dev/null || true
     fi
     
     log_echo "\033[96m[STOP] Killing running daemon processes...\033[0m"

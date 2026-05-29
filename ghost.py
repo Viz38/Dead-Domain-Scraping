@@ -172,22 +172,6 @@ class GhostOrchestrator:
             logging.error(msg_err)
             return
 
-        # Resume logic: Strictly follow 'Scan Status' (Col B)
-        start_row = 2
-        for idx, row in enumerate(sheet_data[1:], start=2):
-            status = row[1] if len(row) > 1 else ""
-            domain = row[0] if len(row) > 0 else ""
-            
-            # FORCE DOMAIN BYPASS
-            if self.force_domain and domain == self.force_domain:
-                start_row = idx
-                break
-                
-            if not status or status.strip() == "" or status == "QUEUED":
-                start_row = idx
-                break
-            start_row = idx + 1
-            
         total_rows = len(sheet_data)
         
         # Build pending_rows early to get accurate count of non-empty domains
@@ -203,10 +187,23 @@ class GhostOrchestrator:
                 if not is_scraped:
                     pending_rows.append((domain, row_idx))
         else:
-            for row_idx in range(start_row, total_rows + 1):
+            for row_idx in range(2, total_rows + 1):
                 row = sheet_data[row_idx-1]
                 domain = row[0].strip() if len(row) > 0 else ""
-                if domain: pending_rows.append((domain, row_idx))
+                status = row[1].strip() if len(row) > 1 else ""
+                
+                if not domain: continue
+                
+                # FORCE DOMAIN BYPASS
+                if self.force_domain and domain == self.force_domain:
+                    pending_rows.append((domain, row_idx))
+                    continue
+                    
+                # Skip completed domains
+                if status in ["SUCCESS", "BLOCK: NO_VALID_TARGET"]:
+                    continue
+                    
+                pending_rows.append((domain, row_idx))
                 
         if self.limit:
             pending_rows = pending_rows[:self.limit]
@@ -234,7 +231,8 @@ class GhostOrchestrator:
         # 2. Clear terminal and start Static Dashboard
         sys.stdout.write("\033[2J\033[H")
         self.dashboard = GhostDashboard(remaining)
-        logging.info(f"[GHOST][Resume] Starting from Row {start_row} | {remaining} domains remaining.")
+        first_row = pending_rows[0][1] if pending_rows else 2
+        logging.info(f"[GHOST][Resume] Starting from Row {first_row} | {remaining} domains remaining.")
         
         # 3. Start Status Flusher (Rule of 59)
         flusher_task = asyncio.create_task(self._status_flusher_loop())

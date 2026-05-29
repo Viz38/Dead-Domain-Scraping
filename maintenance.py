@@ -49,7 +49,7 @@ async def perform_maintenance():
     
     # Identify completed rows (SUCCESS or BLOCK)
     for idx, row in enumerate(rows):
-        if idx == 0: continue # Skip Header
+        if idx <= 1: continue # Skip first two rows (headers)
         
         status = row[1] if len(row) > 1 else ""
         domain = row[0] if len(row) > 0 else ""
@@ -59,7 +59,7 @@ async def perform_maintenance():
             rows_to_delete.append(idx) # 0-indexed row
             
             payload_tag = row[9] if len(row) > 9 else "PASS 1"
-            row_to_append = row[:9] # Extract pure data A-I, dropping the tag
+            row_to_append = row[:10] # Extract data A-J (including the tag)
             if payload_tag == "PASS 1": p1_success.append(row_to_append)
             elif payload_tag == "PASS 2": p2_success.append(row_to_append)
             elif payload_tag == "PASS 3": p3_success.append(row_to_append)
